@@ -165,6 +165,32 @@ describe("CharacterStore", () => {
     expect(characterStore.characters[0].detailsLoaded).toBe(true);
   });
 
+  it.each(["missing", "read error"])(
+    "aborts selection on %s and preserves the chat order on retry",
+    async (failure) => {
+      const shallow = makeChar("retry-selection", 0);
+      shallow.detailsLoaded = false;
+      const loaded = makeChar("retry-selection", 2);
+      loaded.chaId = shallow.chaId;
+      loaded.chatPage = 1;
+      const reader = vi.mocked(mockStorage.loadCharacter);
+      if (failure === "missing") reader.mockResolvedValueOnce(null);
+      else reader.mockRejectedValueOnce(new Error("read failed"));
+      reader.mockResolvedValueOnce(loaded);
+      characterStore.init([shallow], mockStorage);
+
+      await expect(
+        characterStore.ensureCharacterDetails(shallow.chaId!),
+      ).rejects.toThrow();
+      expect(characterStore.characters[0].chats).toHaveLength(0);
+      await characterStore.ensureCharacterDetails(shallow.chaId!);
+      expect(
+        characterStore.characters[0].chats.map((chat) => chat.name),
+      ).toEqual(["chat 1", "chat 2"]);
+      expect(characterStore.characters[0].chatPage).toBe(1);
+    },
+  );
+
   it("restores the persisted active chat when hydrating a startup summary", async () => {
     const shallow = makeChar("startup-active-chat", 0);
     shallow.detailsLoaded = false;

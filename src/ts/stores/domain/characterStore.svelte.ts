@@ -1480,6 +1480,9 @@ class CharacterStore
       try {
         const fullChar = await (storage.loadCharacterForSelection?.(chaId) ??
           storage.loadCharacter(chaId));
+        // A startup shell has no chats. Never let selection normalize it as a
+        // new character and insert a placeholder ahead of its persisted chats.
+        if (!fullChar) throw new Error(`Character not found: ${chaId}`);
         if (fullChar) {
           const idx = this.characters.findIndex((c) => c.chaId === chaId);
           if (idx >= 0) {
@@ -1513,11 +1516,6 @@ class CharacterStore
             }
           }
         }
-      } catch (error) {
-        console.error(
-          `[CharacterStore] loadCharacter failed for ${chaId}:`,
-          error,
-        );
       } finally {
         this.characterDetailPromises.delete(chaId);
       }
