@@ -1,6 +1,4 @@
 # optimization
-
-For the HopeJourney fork, use `dev` as the integration branch. Start feature branches from `dev` when needed and target `dev` when merging them.
 The optimization standard is to ensure normal operation on older Android phones with approximately 4GB of RAM or less. Careful attention must be paid to loading local backups and saving backups.
 
 Memory should contain no unnecessary data if possible. Only essential data should be kept.
