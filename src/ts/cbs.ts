@@ -759,11 +759,15 @@ export function registerCBS(arg: CBSRegisterArg) {
     name: "model",
     callback: (str, matcherArg, args, vars) => {
       const db = getPresetSettings();
+      // Custom models have generated ids, so return the name the user gave.
+      if (db.aiModel?.startsWith("xcustom:::")) {
+        return getModelInfo(db.aiModel).name;
+      }
       return db.aiModel;
     },
     alias: [],
     description:
-      'Returns the ID/name of the currently selected AI model (e.g., "gpt-4", "claude-3-opus").\n\nUsage:: {{model}}',
+      'Returns the ID/name of the currently selected AI model (e.g., "gpt-4", "claude-3-opus"). For custom models, returns the model name.\n\nUsage:: {{model}}',
   });
 
   registerFunction({
