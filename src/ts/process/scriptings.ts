@@ -239,6 +239,18 @@ export async function runScripted(
         : undefined;
       return owner?.subModel ?? ScriptingEngineState.subModel;
     };
+    // A module's own lorebook reports the auxiliary model set on that module.
+    const getLoreAxModel = (sourceModuleId?: string): string | undefined => {
+      if (sourceModuleId && settingsStore.state.enableModuleSubModel) {
+        const source = getModules(
+          getScriptingRequestCharacter(),
+          [sourceModuleId],
+          ScriptingEngineState.chat,
+        )[0];
+        if (source?.subModel) return source.subModel;
+      }
+      return getScriptAxModel();
+    };
     if (code !== ScriptingEngineState.code) {
       let declareAPI: (name: string, func: Function) => void;
 
@@ -1058,7 +1070,7 @@ export async function runScripted(
             found.push({
               ...lorebook,
               sourceModuleId,
-              content: withAxModel(getScriptAxModel(), () =>
+              content: withAxModel(getLoreAxModel(sourceModuleId), () =>
                 risuChatParser(lorebook.content, {
                   chara: selectedChar,
                   chatTarget: ScriptingEngineState.chatTarget,
@@ -1160,9 +1172,15 @@ export async function runScripted(
         let totalTokens = 0;
         const loreBooks = [];
 
-        const axModel = getScriptAxModel();
+        const axModels = new Map<string | undefined, string | undefined>();
         for (const book of fullLoreBooks) {
-          const parsed = withAxModel(axModel, () =>
+          if (!axModels.has(book.sourceModuleId)) {
+            axModels.set(
+              book.sourceModuleId,
+              getLoreAxModel(book.sourceModuleId),
+            );
+          }
+          const parsed = withAxModel(axModels.get(book.sourceModuleId), () =>
             risuChatParser(book.prompt, {
               chara: selectedChar,
               chatTarget: ScriptingEngineState.chatTarget,
