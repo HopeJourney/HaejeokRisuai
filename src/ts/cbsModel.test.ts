@@ -7,7 +7,7 @@ import {
 } from "./cbs";
 
 const callbacks = new Map<string, RegisterCallback>();
-const preset = { aiModel: "" };
+const preset = { aiModel: "", subModel: "" };
 
 registerCBS({
   ...defaultCBSRegisterArg,
@@ -21,6 +21,15 @@ registerCBS({
 
 const model = () =>
   callbacks.get("model")!("model", {} as matcherArg, [], null);
+const axmodel = () =>
+  callbacks.get("axmodel")!("axmodel", {} as matcherArg, [], null);
+
+test("{{axmodel}} returns the name of a custom model, else the id", () => {
+  preset.subModel = "xcustom:::abc";
+  expect(axmodel()).toBe("My Gemini");
+  preset.subModel = "gemini-flash-latest";
+  expect(axmodel()).toBe("gemini-flash-latest");
+});
 
 test("{{model}} returns the name of a custom model", () => {
   preset.aiModel = "xcustom:::abc";

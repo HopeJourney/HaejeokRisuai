@@ -774,11 +774,14 @@ export function registerCBS(arg: CBSRegisterArg) {
     name: "axmodel",
     callback: (str, matcherArg, args, vars) => {
       const db = getPresetSettings();
+      if (db.subModel?.startsWith("xcustom:::")) {
+        return getModelInfo(db.subModel).name;
+      }
       return db.subModel;
     },
     alias: [],
     description:
-      "Returns the currently selected sub/auxiliary model ID. Used for specialized tasks like embedding or secondary processing.\n\nUsage:: {{axmodel}}",
+      "Returns the currently selected sub/auxiliary model ID. Used for specialized tasks like embedding or secondary processing. For custom models, returns the model name.\n\nUsage:: {{axmodel}}",
   });
 
   registerFunction({
