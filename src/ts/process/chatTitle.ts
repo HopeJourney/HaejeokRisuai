@@ -8,6 +8,13 @@ import { requestChatData } from "./request/chatRequestOrchestrator";
 const recentCount = 12;
 const pending = new Set<string>();
 
+/** Removes reasoning blocks such as <Thoughts> or <think>, closed or not. */
+export function stripThoughts(text: string): string {
+  return text
+    .replace(/<(Thoughts|think|thinking)>[\s\S]*?(<\/\1>|$)/gi, "")
+    .trim();
+}
+
 export async function renameChatWithAI(target: ChatTarget): Promise<void> {
   const source = resolveChatTarget(target);
   if (!source || pending.has(target.chatId)) return;
@@ -24,7 +31,7 @@ export async function renameChatWithAI(target: ChatTarget): Promise<void> {
         : source.chat.message.slice(-recentCount);
     const excerpt = recent
       .filter((m) => !m.isComment && !m.disabled && m.data.trim())
-      .map((m) => `${m.role}: ${m.data.slice(0, 600)}`)
+      .map((m) => `${m.role}: ${stripThoughts(m.data).slice(0, 600)}`)
       .join("\n");
     if (!excerpt) throw new Error(language.aiChatTitleEmpty);
 
@@ -51,8 +58,7 @@ export async function renameChatWithAI(target: ChatTarget): Promise<void> {
       throw new Error(response.result || language.aiChatTitleFailed);
     const title =
       response.type === "success" &&
-      response.result
-        .trim()
+      stripThoughts(response.result)
         .split(/\r?\n/, 1)[0]
         .replace(/^["“]|["”]$/g, "")
         .trim();
