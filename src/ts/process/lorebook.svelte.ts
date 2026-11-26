@@ -20,7 +20,7 @@ import {
 import { alertError, alertNormal } from "../alert";
 import { language } from "../../lang";
 import { downloadFile, forageStorage } from "../globalApi.svelte";
-import { getModuleLorebooks } from "./modules";
+import { getModuleLorebooksWithSource } from "./modules";
 import { CCardLib } from "@risuai/ccardlib";
 import { v4 } from "uuid";
 import { isNodeServer } from "../platform";
@@ -113,10 +113,19 @@ export async function loadLoreBookV3Prompt(
   const userName = getUserName(chatVarTarget);
   const characterLore = char.globalLore ?? [];
   const chatLore = sourceChat.localLore ?? [];
-  const moduleLorebook = getModuleLorebooks(char, generation?.moduleIds);
+  const moduleLoreSources = getModuleLorebooksWithSource(
+    char,
+    generation?.moduleIds,
+  );
+  const moduleLorebook = moduleLoreSources.map(({ lorebook }) => lorebook);
   const fullLore = safeStructuredClone(
     characterLore.concat(chatLore).concat(moduleLorebook),
   );
+  // Module of each fullLore entry, so Lua can parse it with that module's model.
+  const loreSourceModuleIds: (string | undefined)[] = [
+    ...Array(characterLore.length + chatLore.length).fill(undefined),
+    ...moduleLoreSources.map(({ sourceModuleId }) => sourceModuleId),
+  ];
   const currentChat = sourceChat.message;
   const loreDepth =
     char.loreSettings?.scanDepth ?? settingsStore.state.loreBookDepth;
@@ -486,6 +495,7 @@ export async function loadLoreBookV3Prompt(
     tokens: number;
     priority: number;
     source: string;
+    sourceModuleId?: string;
     inject: {
       operation: "append" | "prepend" | "replace";
       location: string;
@@ -518,6 +528,7 @@ export async function loadLoreBookV3Prompt(
         tokens: 0,
         priority: entry.priority,
         source: entry.source,
+        sourceModuleId: loreSourceModuleIds[index],
         inject: entry.inject,
       });
       activatedIndexes.push(index);
@@ -564,6 +575,7 @@ export async function loadLoreBookV3Prompt(
             if (!activatedIndexes.includes(j)) {
               fullLore[i].comment = fullLore[j].comment;
               fullLore[i].content = fullLore[j].content;
+              loreSourceModuleIds[i] = loreSourceModuleIds[j];
               fullLore[i].alwaysActive = true;
               activated = true;
             }
@@ -873,6 +885,7 @@ export async function loadLoreBookV3Prompt(
           tokens: 0,
           priority: priority,
           source: fullLore[i].comment || `lorebook ${i}`,
+          sourceModuleId: loreSourceModuleIds[i],
           inject: inject ?? null,
         });
         activatedIndexes.push(i);
