@@ -6,6 +6,7 @@ import { AuthorNoteError } from "@risuai/protocol/src/authorNotes.ts";
 import { presetStore } from "src/ts/stores/domain/presetStore.svelte";
 import { parseChatML } from "../parser/chatML";
 import { risuChatParser } from "../parser/parser.svelte";
+import { withAxModel } from "../cbs";
 import type { Chat, character } from "../storage/database/schema";
 
 import { tokenize } from "../tokenizer";
@@ -1398,16 +1399,20 @@ export async function runTrigger(
     return state.toString();
   }
 
+  // The auxiliary model the running trigger requests with, for {{axmodel}}.
+  let triggerAxModel: string | undefined;
   const parseTriggerText = (
     text: string,
     parserArg: Parameters<typeof risuChatParser>[1] = {},
   ) =>
-    risuChatParser(text, {
-      ...parserArg,
-      chatTarget: target,
-      authorNoteContent,
-      triggerId: arg.triggerId,
-    });
+    withAxModel(triggerAxModel, () =>
+      risuChatParser(text, {
+        ...parserArg,
+        chatTarget: target,
+        authorNoteContent,
+        triggerId: arg.triggerId,
+      }),
+    );
 
   function setVar(key: string, value: string): boolean {
     if (arg.displayMode) {
@@ -1436,6 +1441,9 @@ export async function runTrigger(
 
   for (const trigger of triggers) {
     let tempVars: Record<string, number> = {};
+    triggerAxModel = settingsStore.state.enableModuleSubModel
+      ? trigger.subModel
+      : undefined;
 
     if (
       trigger.effect[0]?.type === "triggercode" ||
