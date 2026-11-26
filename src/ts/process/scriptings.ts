@@ -7,6 +7,7 @@ import { presetStore } from "src/ts/stores/domain/presetStore.svelte";
 import { resolveChatTarget, type ChatExecutionTarget } from "src/ts/chatTarget";
 import { settingsStore } from "src/ts/stores/domain/settingsStore.svelte";
 import { asBuffer } from "src/ts/util";
+import { withAxModel } from "src/ts/cbs";
 import {
   getChatVar,
   getGlobalChatVar,
@@ -225,6 +226,18 @@ export async function runScripted(
     const getScriptingRequestCharacter = () => {
       const scriptingChar = getScriptingCharacter();
       return scriptingChar?.type === "character" ? scriptingChar : undefined;
+    };
+    // The model axLLM requests with, so {{axmodel}} in Lua matches it.
+    const getScriptAxModel = (): string | undefined => {
+      const ownerId = ScriptingEngineState.sandboxOwnerModuleId;
+      const owner = ownerId
+        ? getModules(
+            getScriptingRequestCharacter(),
+            [ownerId],
+            ScriptingEngineState.chat,
+          )[0]
+        : undefined;
+      return owner?.subModel ?? ScriptingEngineState.subModel;
     };
     if (code !== ScriptingEngineState.code) {
       let declareAPI: (name: string, func: Function) => void;
@@ -447,11 +460,13 @@ export async function runScripted(
       });
 
       declareAPI("cbs", (value) => {
-        return risuChatParser(value, {
-          chara: getScriptingCharacter(),
-          chatTarget: ScriptingEngineState.chatTarget,
-          triggerId: ScriptingEngineState.triggerId,
-        });
+        return withAxModel(getScriptAxModel(), () =>
+          risuChatParser(value, {
+            chara: getScriptingCharacter(),
+            chatTarget: ScriptingEngineState.chatTarget,
+            triggerId: ScriptingEngineState.triggerId,
+          }),
+        );
       });
 
       declareAPI("setFullChatMain", (id: string, value: string) => {
@@ -1043,10 +1058,12 @@ export async function runScripted(
             found.push({
               ...lorebook,
               sourceModuleId,
-              content: risuChatParser(lorebook.content, {
-                chara: selectedChar,
-                chatTarget: ScriptingEngineState.chatTarget,
-              }),
+              content: withAxModel(getScriptAxModel(), () =>
+                risuChatParser(lorebook.content, {
+                  chara: selectedChar,
+                  chatTarget: ScriptingEngineState.chatTarget,
+                }),
+              ),
             });
           }
         }
@@ -1143,11 +1160,14 @@ export async function runScripted(
         let totalTokens = 0;
         const loreBooks = [];
 
+        const axModel = getScriptAxModel();
         for (const book of fullLoreBooks) {
-          const parsed = risuChatParser(book.prompt, {
-            chara: selectedChar,
-            chatTarget: ScriptingEngineState.chatTarget,
-          }).trim();
+          const parsed = withAxModel(axModel, () =>
+            risuChatParser(book.prompt, {
+              chara: selectedChar,
+              chatTarget: ScriptingEngineState.chatTarget,
+            }),
+          ).trim();
           if (parsed.length === 0) {
             continue;
           }

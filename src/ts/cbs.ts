@@ -167,6 +167,23 @@ export type CBSRegisterArg = {
   appVer: string;
 };
 
+let axModelOverride: string | undefined;
+
+/**
+ * Runs a synchronous CBS parse in which {{axmodel}} reports `model`, the
+ * auxiliary model a module or bundle actually requests with.
+ */
+export function withAxModel<T>(model: string | undefined, parse: () => T): T {
+  if (!model) return parse();
+  const previous = axModelOverride;
+  axModelOverride = model;
+  try {
+    return parse();
+  } finally {
+    axModelOverride = previous;
+  }
+}
+
 export function registerCBS(arg: CBSRegisterArg) {
   const {
     registerFunction,
@@ -774,14 +791,15 @@ export function registerCBS(arg: CBSRegisterArg) {
     name: "axmodel",
     callback: (str, matcherArg, args, vars) => {
       const db = getPresetSettings();
-      if (db.subModel?.startsWith("xcustom:::")) {
-        return getModelInfo(db.subModel).name;
+      const subModel = axModelOverride || db.subModel;
+      if (subModel?.startsWith("xcustom:::")) {
+        return getModelInfo(subModel).name;
       }
-      return db.subModel;
+      return subModel;
     },
     alias: [],
     description:
-      "Returns the currently selected sub/auxiliary model ID. Used for specialized tasks like embedding or secondary processing. For custom models, returns the model name.\n\nUsage:: {{axmodel}}",
+      "Returns the currently selected sub/auxiliary model ID. Used for specialized tasks like embedding or secondary processing. Inside a module's Lua, triggers or lorebooks read by Lua, returns the auxiliary model of that module or bundle. For custom models, returns the model name.\n\nUsage:: {{axmodel}}",
   });
 
   registerFunction({
