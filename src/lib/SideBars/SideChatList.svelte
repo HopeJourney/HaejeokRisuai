@@ -494,7 +494,11 @@
       </span>
     {/if}
     <div class="rs-sidechat-actions grow flex justify-end">
-      {@render actionButton(() => handleChatMenu(chat, chatIdx), MenuIcon)}
+      {@render actionButton((e) => {
+        // Opening the menu must not also select the chat and reload the GUI.
+        e.stopPropagation();
+        void handleChatMenu(chat, chatIdx);
+      }, MenuIcon)}
       {@render actionButton(toggleEditMode, PencilIcon)}
       {@render actionButton((e) => handleExportChat(e, chatIdx), DownloadIcon)}
       {@render actionButton(
