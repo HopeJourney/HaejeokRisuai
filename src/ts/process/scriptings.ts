@@ -44,7 +44,10 @@ import {
 } from "./files/inlays";
 import type { OpenAIChat, MultiModal } from "@risuai/chat-core/types.ts";
 import { requestChatData } from "./request/chatRequestOrchestrator";
-import type { StreamResponseChunk } from "./request/requestContracts";
+import type {
+  requestDataArgument,
+  StreamResponseChunk,
+} from "./request/requestContracts";
 import { v4 } from "uuid";
 import {
   getModuleLorebooksWithSource,
@@ -690,6 +693,55 @@ export async function runScripted(
         }
       };
 
+      // Optional `schema` (JSON Schema string or Lua table) and `maxTokens` for LLM/axLLM.
+      const parseLuaRequestOptions = (options: {
+        schema?: unknown;
+        maxTokens?: unknown;
+      }):
+        | {
+            request: Pick<
+              requestDataArgument,
+              "schema" | "extractJson" | "maxTokens"
+            >;
+          }
+        | { error: string } => {
+        const request: Pick<
+          requestDataArgument,
+          "schema" | "extractJson" | "maxTokens"
+        > = {};
+        if (options.maxTokens !== undefined && options.maxTokens !== null) {
+          const maxTokens = options.maxTokens;
+          if (
+            typeof maxTokens !== "number" ||
+            !Number.isInteger(maxTokens) ||
+            maxTokens <= 0
+          ) {
+            return { error: "maxTokens must be a positive integer" };
+          }
+          request.maxTokens = maxTokens;
+        }
+        const schema =
+          typeof options.schema === "string"
+            ? options.schema
+            : options.schema && typeof options.schema === "object"
+              ? JSON.stringify(options.schema)
+              : "";
+        if (schema.trim() !== "") {
+          if (!/^(export )?interface /.test(schema)) {
+            try {
+              const parsed = JSON.parse(schema);
+              if (!parsed || typeof parsed !== "object") throw new Error();
+            } catch {
+              return { error: "schema must be a JSON Schema object" };
+            }
+          }
+          request.schema = schema;
+          // The preset's extractJson targets the main chat schema; a Lua caller gets the whole object.
+          request.extractJson = "";
+        }
+        return { request };
+      };
+
       const collectLuaStreamText = async (
         stream: ReadableStream<StreamResponseChunk>,
       ) => {
@@ -789,7 +841,16 @@ export async function runScripted(
 
           const options = parseLuaOptions(optionsStr) as {
             streaming?: boolean;
+            schema?: unknown;
+            maxTokens?: unknown;
           };
+          const extra = parseLuaRequestOptions(options);
+          if ("error" in extra) {
+            return JSON.stringify({
+              success: false,
+              result: "Error: " + extra.error,
+            });
+          }
           const result = await requestChatData(
             {
               formated: promptbody,
@@ -799,6 +860,7 @@ export async function runScripted(
               useStreaming: options.streaming === true,
               forceStreaming: options.streaming === true,
               noMultiGen: true,
+              ...extra.request,
             },
             "model",
           );
@@ -1244,6 +1306,8 @@ export async function runScripted(
           const options = parseLuaOptions(optionsStr) as {
             mode?: string;
             streaming?: boolean;
+            schema?: unknown;
+            maxTokens?: unknown;
           };
           const modes = new Set([
             "emotion",
@@ -1257,6 +1321,13 @@ export async function runScripted(
             return JSON.stringify({
               result: "Error: Invalid axLLM mode: " + mode,
               success: false,
+            });
+          }
+          const extra = parseLuaRequestOptions(options);
+          if ("error" in extra) {
+            return JSON.stringify({
+              success: false,
+              result: "Error: " + extra.error,
             });
           }
           const sandboxOwner = ScriptingEngineState.sandboxOwnerModuleId
@@ -1280,6 +1351,7 @@ export async function runScripted(
               sourceModuleId: ScriptingEngineState.sourceModuleId,
               moduleSandboxOwnerId: sandboxOwner?.id,
               moduleSandboxGroupId: ScriptingEngineState.sandboxGroupId,
+              ...extra.request,
             },
             mode as "emotion" | "memory" | "otherAx" | "submodel" | "translate",
           );

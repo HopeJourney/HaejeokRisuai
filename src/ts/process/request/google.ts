@@ -27,7 +27,11 @@ import {
   writeInlayImage,
   type InlaySignature,
 } from "../files/inlays";
-import { extractJSON, getGeneralJSONSchema } from "../templates/jsonSchema";
+import {
+  addPropertyOrdering,
+  extractJSON,
+  getGeneralJSONSchema,
+} from "../templates/jsonSchema";
 import { callTool, decodeToolCall, encodeToolCall } from "../mcp/mcp";
 import { alertError } from "src/ts/alert";
 import { addFetchLog } from "src/ts/globalApi.svelte";
@@ -422,10 +426,12 @@ export async function requestGoogleCloudVertex(
 
   if (presetStore.state.jsonSchemaEnabled || arg.schema) {
     body.generation_config.response_mime_type = "application/json";
-    body.generation_config.response_schema = getGeneralJSONSchema(
-      arg.schema,
-      ["$schema", "additionalProperties"],
-      resolveRequestParserContext(arg),
+    body.generation_config.response_schema = addPropertyOrdering(
+      getGeneralJSONSchema(
+        arg.schema,
+        ["$schema", "additionalProperties"],
+        resolveRequestParserContext(arg),
+      ),
     );
     console.log(body.generation_config.response_schema);
   }
