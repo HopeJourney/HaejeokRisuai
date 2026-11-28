@@ -177,6 +177,35 @@ export function getGeneralJSONSchema(
   return process(d);
 }
 
+/**
+ * Gemini orders object properties alphabetically unless `propertyOrdering`
+ * is given. Keep the order the schema was written in.
+ */
+export function addPropertyOrdering<T>(schema: T): T {
+  if (Array.isArray(schema)) {
+    schema.forEach(addPropertyOrdering);
+  } else if (schema && typeof schema === "object") {
+    const node = schema as Record<string, unknown>;
+    const properties = node.properties;
+    if (
+      properties &&
+      typeof properties === "object" &&
+      !Array.isArray(properties) &&
+      !Array.isArray(node.propertyOrdering)
+    ) {
+      node.propertyOrdering = Object.keys(properties);
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "properties" && value && typeof value === "object") {
+        Object.values(value).forEach(addPropertyOrdering);
+      } else if (key !== "propertyOrdering") {
+        addPropertyOrdering(value);
+      }
+    }
+  }
+  return schema;
+}
+
 export function extractJSON(
   data: unknown,
   format: string,

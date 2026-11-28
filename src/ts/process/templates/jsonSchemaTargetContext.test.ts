@@ -13,6 +13,7 @@ vi.mock("src/ts/stores/domain/settingsStore.svelte", () => ({
 vi.mock("src/ts/util", () => ({ jsonOutputTrimmer: (value: string) => value }));
 
 import {
+  addPropertyOrdering,
   convertInterfaceToSchema,
   extractJSON,
   getGeneralJSONSchema,
@@ -53,6 +54,36 @@ test("uses generation context when extracting structured output", () => {
 
   expect(value).toBe("scoped-value");
   expect(parser).toHaveBeenLastCalledWith("{{char}}", context);
+});
+
+test("adds Gemini property ordering in written order, including nested objects", () => {
+  const schema = addPropertyOrdering(
+    getGeneralJSONSchema(
+      JSON.stringify({
+        type: "object",
+        properties: {
+          npcs: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                present: { type: "boolean" },
+              },
+            },
+          },
+          note: { type: "string" },
+        },
+      }),
+      ["$schema", "additionalProperties"],
+      context,
+    ),
+  );
+  expect(schema.propertyOrdering).toEqual(["npcs", "note"]);
+  expect(schema.properties.npcs.items.propertyOrdering).toEqual([
+    "name",
+    "present",
+  ]);
 });
 
 test("extracts nested fields from already parsed objects", () => {

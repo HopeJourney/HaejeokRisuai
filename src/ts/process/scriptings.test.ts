@@ -1050,3 +1050,51 @@ test("routes Lua axLLM through the requested auxiliary mode", async () => {
     "translate",
   );
 });
+
+test("passes Lua axLLM schema and maxTokens to the request", async () => {
+  requestChatDataMock.mockClear();
+  await runScripted(
+    `onStart = async(function(id)
+    axLLM(id, {{ role = "user", content = "json please" }}, false, {
+      maxTokens = 4096,
+      schema = { type = "object", properties = { name = { type = "string" } }, required = { "name" } },
+    })
+  end)`,
+    {
+      char: { type: "character" } as never,
+      chat: { message: [] } as never,
+      mode: "start",
+      lowLevelAccess: true,
+    },
+  );
+  const [request] = requestChatDataMock.mock.calls[0];
+  expect(request).toMatchObject({ maxTokens: 4096, extractJson: "" });
+  expect(JSON.parse(request.schema)).toEqual({
+    type: "object",
+    properties: { name: { type: "string" } },
+    required: ["name"],
+  });
+});
+
+test("rejects invalid Lua axLLM request options without calling the model", async () => {
+  requestChatDataMock.mockClear();
+  await runScripted(
+    `onStart = async(function(id)
+    local a = axLLM(id, {{ role = "user", content = "x" }}, false, { maxTokens = 1.5 })
+    local b = axLLM(id, {{ role = "user", content = "x" }}, false, { schema = "not json" })
+    setChatVar(id, "result", tostring(a.success) .. "|" .. a.result .. "|" .. b.result)
+  end)`,
+    {
+      char: { type: "character" } as never,
+      chat: { message: [] } as never,
+      mode: "start",
+      lowLevelAccess: true,
+    },
+  );
+  expect(requestChatDataMock).not.toHaveBeenCalled();
+  expect(setChatVarMock).toHaveBeenCalledWith(
+    "result",
+    "false|Error: maxTokens must be a positive integer|Error: schema must be a JSON Schema object",
+    undefined,
+  );
+});
